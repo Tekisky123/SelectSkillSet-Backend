@@ -37,7 +37,7 @@ export const registerCandidate = async (req, res) => {
 export const verifyOtpAndRegister = async (req, res) => {
   try {
     const { otp, email, password, ...rest } = req.body;
-    const normalizedEmail = email.toLowerCase();
+    const normalizedEmail = email
 
     const storedOtp = otpStorage[normalizedEmail];
 
