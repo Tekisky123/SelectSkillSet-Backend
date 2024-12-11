@@ -1,35 +1,32 @@
 import bcrypt from "bcrypt";
-
 import { Candidate } from "../model/candidateModel.js";
 import generateToken from "../middleware/generateToken.js";
 import { Interviewer } from "../model/interviewerModel.js";
+import { otpStorage } from "../helper/sendOtp.js";
 
+// Register candidate in the database after OTP verification
+export const registerCandidate = async ({ email, password, ...rest }) => {
+  try {
+    const candidateExist = await Candidate.findOne({ email });
+    if (candidateExist) {
+      throw new Error("Candidate already exists with this email.");
+    }
 
-export const registerCandidate = async (data, res) => {
-  const { email, password } = data;
+    // Hash password before storing in DB
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newCandidate = new Candidate({ email, password: hashedPassword, ...rest });
 
-  const existingCandidate = await Candidate.findOne({ email });
-  if (existingCandidate) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Candidate already exists" });
+    const savedCandidate = await newCandidate.save();
+
+    // Generate a token for the registered candidate
+    const token = generateToken(savedCandidate);
+
+    return { token, candidateDetails: savedCandidate };
+  } catch (error) {
+    throw new Error(error.message);
   }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const newCandidate = await Candidate.create({
-    ...data,
-    password: hashedPassword,
-  });
-
-  const token = generateToken(newCandidate);
-  const { password: _, ...candidateDetails } = newCandidate.toObject();
-
-  return res.status(201).json({
-    success: true,
-    token,
-    candidate: candidateDetails,
-  });
 };
+
 // Login candidate and generate JWT token
 export const loginCandidate = async (data, res) => {
   const { email, password } = data;
@@ -69,29 +66,26 @@ export const getProfile = async (candidateId, res) => {
   return res.status(200).json({ success: true, profile: candidate });
 };
 
+// Update candidate profile
 export const updateProfile = async (candidateId, data, res) => {
-  try {
-    const allowedUpdates = ["firstName", "lastName", "email", "jobTitle", "location", "mobile", "profilePhoto"];
-    const updates = Object.keys(data);
+  const allowedUpdates = ["firstName", "lastName", "email", "jobTitle", "location", "mobile", "profilePhoto"];
+  const updates = Object.keys(data);
 
-    const isAllowed = updates.every((key) => allowedUpdates.includes(key));
-    if (!isAllowed) {
-      return res.status(400).json({ success: false, message: "Invalid updates!" });
-    }
-
-    const candidate = await Candidate.findByIdAndUpdate(candidateId, data, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!candidate) {
-      return res.status(404).json({ success: false, message: "Profile update failed" });
-    }
-
-    return res.status(200).json({ success: true, updatedProfile: candidate });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+  const isAllowed = updates.every((key) => allowedUpdates.includes(key));
+  if (!isAllowed) {
+    return res.status(400).json({ success: false, message: "Invalid updates!" });
   }
+
+  const candidate = await Candidate.findByIdAndUpdate(candidateId, data, {
+    new: true,
+    runValidators: true,
+  });
+
+  if (!candidate) {
+    return res.status(404).json({ success: false, message: "Profile update failed" });
+  }
+
+  return res.status(200).json({ success: true, updatedProfile: candidate });
 };
 
 // Delete candidate profile
@@ -133,7 +127,7 @@ export const importFromLinkedIn = async (candidateId, linkedInData, res) => {
   return res.status(200).json({ success: true, updatedProfile: candidate });
 };
 
-
+// Get interviewers
 export const getInterviewers = async (res) => {
   const interviewers = await Interviewer.find().select(
     "firstName experience availability totalInterviews price profilePhoto"

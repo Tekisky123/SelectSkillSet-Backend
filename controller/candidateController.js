@@ -13,28 +13,30 @@ import {
   getScheduledInterviews as getScheduledInterviewsService,
 } from "../services/candidateService.js";
 
+// Register candidate and send OTP
 export const registerCandidate = async (req, res) => {
   try {
     const { email } = req.body;
 
+    // Generate OTP
     const otp = generateOtp();
 
+    // Send OTP to the email
     await sendOtp(email, otp);
 
     return res.status(200).json({
       success: true,
-      message:
-        "OTP sent to your email. Please verify to complete registration.",
+      message: "OTP sent to your email. Please verify to complete registration.",
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
+// Verify OTP and complete registration
 export const verifyOtpAndRegister = async (req, res) => {
   try {
     const { otp, email, password, ...rest } = req.body;
-
     const normalizedEmail = email.toLowerCase();
 
     const storedOtp = otpStorage[normalizedEmail];
@@ -46,20 +48,23 @@ export const verifyOtpAndRegister = async (req, res) => {
     if (otp !== storedOtp) {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
-    await registerCandidateService({ email, password, ...rest }, res);
 
+    // Proceed with registration by calling the service
+    const { token, candidateDetails } = await registerCandidateService({ email, password, ...rest });
+
+    // Clear OTP after successful verification
     delete otpStorage[normalizedEmail];
 
-     res.status(200).json({ success: true, message: "Registration successful" });
+    // Send success response after registration is complete
+    return res.status(201).json({ success: true, token, candidate: candidateDetails });
 
   } catch (error) {
-    console.error(error); 
+    console.error("Error during OTP verification:", error.message);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-
-// Login a candidate
+// Login candidate
 export const loginCandidate = async (req, res) => {
   try {
     await loginCandidateService(req.body, res);
@@ -68,7 +73,7 @@ export const loginCandidate = async (req, res) => {
   }
 };
 
-// Get profile of the candidate
+// Get candidate profile
 export const getCandidateProfile = async (req, res) => {
   try {
     await getProfile(req.user.id, res);
@@ -77,7 +82,7 @@ export const getCandidateProfile = async (req, res) => {
   }
 };
 
-// Update candidate's profile
+// Update candidate profile
 export const updateCandidateProfile = async (req, res) => {
   try {
     await updateProfile(req.user.id, req.body, res);
