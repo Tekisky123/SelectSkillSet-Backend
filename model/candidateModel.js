@@ -7,17 +7,18 @@ const candidateSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     mobile: { type: String },
-    jobTitle: { type: String }, 
+    countryCode: { type: String },
+    jobTitle: { type: String },
     location: { type: String },
-    profilePhoto: { type: String }, 
+    profilePhoto: { type: String },
     profile: {
       resume: { type: String },
       linkedIn: { type: String },
     },
     statistics: {
       monthlyStatistics: {
-        completedInterviews: { type: Number, default: 0 }, 
-        averageRating: { type: Number, default: 0 }, 
+        completedInterviews: { type: Number, default: 0 },
+        averageRating: { type: Number, default: 0 },
         feedbackCount: { type: Number, default: 0 },
       },
       feedbacks: [

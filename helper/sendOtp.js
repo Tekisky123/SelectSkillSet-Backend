@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import generateOtp from "./generateOtp.js";
+import otpEmailTemplate from "../templates/otpEmailTemplate.js";
 
 dotenv.config();
 
@@ -17,23 +18,21 @@ export const sendOtpEmail = async (email, otp) => {
     from: process.env.SMTP_USER,
     to: email,
     subject: "Your OTP Code",
-    text: `Your OTP code is: ${otp}`,
+    html: otpEmailTemplate(otp),
   };
 
   await transporter.sendMail(mailOptions);
 };
 
-export let otpStorage = {};  // This is shared globally
+export let otpStorage = {};  
 
 export const sendOtp = async (email) => {
   try {
-    const otp = generateOtp();  // Generate the OTP
-    otpStorage[email] = otp;  // Store OTP against the email
+    const otp = generateOtp(); 
+    otpStorage[email] = otp;  
 
-    // Log for debugging
     console.log(`Generated OTP for ${email}: ${otp}`);
 
-    // Send OTP email
     await sendOtpEmail(email, otp);
     console.log(`OTP sent to ${email}`);
   } catch (error) {

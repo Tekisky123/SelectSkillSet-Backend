@@ -49,13 +49,10 @@ export const verifyOtpAndRegister = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
-    // Proceed with registration by calling the service
     const { token, candidateDetails } = await registerCandidateService({ email, password, ...rest });
 
-    // Clear OTP after successful verification
     delete otpStorage[normalizedEmail];
 
-    // Send success response after registration is complete
     return res.status(201).json({ success: true, token, candidate: candidateDetails });
 
   } catch (error) {

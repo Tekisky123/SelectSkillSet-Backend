@@ -2,7 +2,6 @@ import bcrypt from "bcrypt";
 import { Candidate } from "../model/candidateModel.js";
 import generateToken from "../middleware/generateToken.js";
 import { Interviewer } from "../model/interviewerModel.js";
-import { otpStorage } from "../helper/sendOtp.js";
 
 // Register candidate in the database after OTP verification
 export const registerCandidate = async ({ email, password, ...rest }) => {
@@ -12,13 +11,11 @@ export const registerCandidate = async ({ email, password, ...rest }) => {
       throw new Error("Candidate already exists with this email.");
     }
 
-    // Hash password before storing in DB
     const hashedPassword = await bcrypt.hash(password, 10);
     const newCandidate = new Candidate({ email, password: hashedPassword, ...rest });
 
     const savedCandidate = await newCandidate.save();
 
-    // Generate a token for the registered candidate
     const token = generateToken(savedCandidate);
 
     return { token, candidateDetails: savedCandidate };
@@ -27,7 +24,6 @@ export const registerCandidate = async ({ email, password, ...rest }) => {
   }
 };
 
-// Login candidate and generate JWT token
 export const loginCandidate = async (data, res) => {
   const { email, password } = data;
 
@@ -55,7 +51,6 @@ export const loginCandidate = async (data, res) => {
   });
 };
 
-// Get candidate profile excluding password
 export const getProfile = async (candidateId, res) => {
   const candidate = await Candidate.findById(candidateId).select("-password");
   if (!candidate) {
