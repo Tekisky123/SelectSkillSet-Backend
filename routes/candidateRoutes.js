@@ -29,7 +29,7 @@ candidateRoutes.post("/import/linkedin", importFromLinkedIn);
 
 // Interviewers and scheduling
 candidateRoutes.get("/interviewers", getInterviewers);
-candidateRoutes.post("/schedule", scheduleInterview);
+candidateRoutes.post("/schedule",authenticate, scheduleInterview);
 candidateRoutes.get("/interviews", getScheduledInterviews);
 
 export default candidateRoutes;

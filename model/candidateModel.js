@@ -11,10 +11,8 @@ const candidateSchema = new mongoose.Schema(
     jobTitle: { type: String },
     location: { type: String },
     profilePhoto: { type: String },
-    profile: {
-      resume: { type: String },
-      linkedIn: { type: String },
-    },
+    resume: { type: String },
+    linkedIn: { type: String },
     statistics: {
       monthlyStatistics: {
         completedInterviews: { type: Number, default: 0 },
@@ -35,7 +33,6 @@ const candidateSchema = new mongoose.Schema(
           ref: "Interviewer",
         },
         date: { type: Date, required: true },
-        time: { type: String, required: true },
         price: { type: Number },
         status: {
           type: String,

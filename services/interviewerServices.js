@@ -67,17 +67,16 @@ export const getInterviewerProfileServices = async (interviewerId, res) => {
   }
   return res.status(200).json({ success: true, profile: interviewer });
 };
+export const getAvailabilityServices = async (interviewerId) => {
+  const interviewer = await Interviewer.findById(interviewerId).select("availability.dates");
 
-export const getAvailabilityServices = async (interviewerId, res) => {
-  const availability = await Interviewer.findById(interviewerId).select(
-    "availability"
-  );
-  if (!availability) {
-    return res.status(404).json({ success: false, message: "unavalable" });
+  if (!interviewer || !interviewer.availability || !interviewer.availability.dates) {
+    throw new Error("Availability not found");
   }
-  return res.status(200).json({ success: true, profile: availability });
-  
+
+  return interviewer.availability.dates;
 };
+
 
 export const updateInterviewerProfileServices = async (
   interviewerId,
@@ -88,7 +87,7 @@ export const updateInterviewerProfileServices = async (
     const allowedUpdates = [
       "firstName",
       "lastName",
-      "email",
+     " countryCode",
       "jobTitle",
       "location",
       "mobile",
@@ -125,3 +124,4 @@ export const updateInterviewerProfileServices = async (
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+

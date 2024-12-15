@@ -26,7 +26,8 @@ export const registerCandidate = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "OTP sent to your email. Please verify to complete registration.",
+      message:
+        "OTP sent to your email. Please verify to complete registration.",
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -37,24 +38,31 @@ export const registerCandidate = async (req, res) => {
 export const verifyOtpAndRegister = async (req, res) => {
   try {
     const { otp, email, password, ...rest } = req.body;
-    const normalizedEmail = email
+    const normalizedEmail = email;
 
     const storedOtp = otpStorage[normalizedEmail];
 
     if (!storedOtp) {
-      return res.status(400).json({ success: false, message: "OTP not sent or expired" });
+      return res
+        .status(400)
+        .json({ success: false, message: "OTP not sent or expired" });
     }
 
     if (otp !== storedOtp) {
       return res.status(400).json({ success: false, message: "Invalid OTP" });
     }
 
-    const { token, candidateDetails } = await registerCandidateService({ email, password, ...rest });
+    const { token, candidateDetails } = await registerCandidateService({
+      email,
+      password,
+      ...rest,
+    });
 
     delete otpStorage[normalizedEmail];
 
-    return res.status(201).json({ success: true, token, candidate: candidateDetails });
-
+    return res
+      .status(201)
+      .json({ success: true, token, candidate: candidateDetails });
   } catch (error) {
     console.error("Error during OTP verification:", error.message);
     return res.status(500).json({ success: false, message: error.message });
@@ -126,8 +134,10 @@ export const getInterviewers = async (req, res) => {
 
 // Schedule interview for a candidate
 export const scheduleInterview = async (req, res) => {
+  const data = req.body;
+
   try {
-    await scheduleInterviewService(req.user.id, req.body, res);
+    await scheduleInterviewService(req.user.id, data, res);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -7,6 +7,7 @@ const interviewerSchema = new mongoose.Schema({
   password: { type: String, required: true },
   location: { type: String },
   mobile: { type: String },
+  countryCode: { type: String },
   jobTitle: { type: String },
   profilePhoto: { type: String },
   experience: { type: String },
@@ -14,22 +15,20 @@ const interviewerSchema = new mongoose.Schema({
   price: { type: String },
   interviewRequests: [
     {
+      candidateId: { type: mongoose.Schema.Types.ObjectId, ref: "Candidate" },
       candidateName: String,
       position: String,
       date: String,
       time: String,
     },
   ],
+  
   availability: {
-    dateFrom: { type: Date },
-    dateTo: { type: Date },
-    timeFrom: { type: String },
-    timeTo: { type: String },
-    status: {
-      type: String,
-      enum: ["available", "unavailable"],
-     
-    },
+    dates: [
+      {
+        date: { type: Date, required: true }, 
+      },
+    ],
   },
   statistics: {
     completedInterviews: { type: Number, default: 0 },
