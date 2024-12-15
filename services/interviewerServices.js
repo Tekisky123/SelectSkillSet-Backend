@@ -78,30 +78,24 @@ export const getAvailabilityServices = async (interviewerId) => {
 };
 
 
-export const updateInterviewerProfileServices = async (
-  interviewerId,
-  data,
-  res
-) => {
+export const updateInterviewerProfileServices = async (interviewerId, data, res) => {
   try {
     const allowedUpdates = [
       "firstName",
       "lastName",
-     " countryCode",
       "jobTitle",
       "location",
       "mobile",
       "profilePhoto",
       "experience",
       "price",
+      "countryCode", 
     ];
     const updates = Object.keys(data);
 
     const isAllowed = updates.every((key) => allowedUpdates.includes(key));
     if (!isAllowed) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid updates!" });
+      return res.status(400).json({ success: false, message: "Invalid updates!" });
     }
 
     const interviewer = await Interviewer.findByIdAndUpdate(
@@ -114,9 +108,7 @@ export const updateInterviewerProfileServices = async (
     );
 
     if (!interviewer) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Profile update failed" });
+      return res.status(404).json({ success: false, message: "Profile update failed" });
     }
 
     return res.status(200).json({ success: true, updatedProfile: interviewer });
@@ -124,4 +116,3 @@ export const updateInterviewerProfileServices = async (
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-
