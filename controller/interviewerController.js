@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import { Interviewer } from "../model/interviewerModel.js";
 import { Candidate } from "../model/candidateModel.js";
 import {
@@ -10,7 +9,9 @@ import {
 } from "../services/interviewerServices.js";
 import dotenv from "dotenv";
 import { sendEmail } from "../helper/emailService.js";
-import { generateGoogleMeetLink } from "../helper/googleMeetUtils.js";
+import { interviewerTemplate } from "../templates/interviewerTemplate.js";
+import { candidateTemplate } from "../templates/candidateTemplate.js";
+
 
 dotenv.config();
 export const registerInterviewer = async (req, res) => {
@@ -187,6 +188,8 @@ export const getInterviewRequests = async (req, res) => {
   }
 };
 
+
+
 export const updateInterviewRequest = async (req, res) => {
   try {
     const { interviewRequestId, status } = req.body;
@@ -198,114 +201,118 @@ export const updateInterviewRequest = async (req, res) => {
       });
     }
 
-    if (status !== "Approved") {
+    if (!["Approved", "Cancelled"].includes(status)) {
       return res.status(400).json({
         success: false,
-        message: "Only 'Approved' status is allowed",
+        message: "Invalid status. Only 'Approved' or 'Cancelled' are allowed.",
       });
     }
 
-    // Find the interviewer and the interview request
-    const interviewer = await Interviewer.findOne(
+    const updateResult = await Interviewer.updateOne(
       { "interviewRequests._id": interviewRequestId },
       {
-        "interviewRequests.$": 1,
-        email: 1,
-        firstName: 1,
-        lastName: 1,
-        availability: 1,
+        $set: {
+          "interviewRequests.$.status": status,
+        },
       }
     );
 
-    if (!interviewer) {
+    if (updateResult.matchedCount === 0) {
       return res.status(404).json({
         success: false,
-        message: "Interviewer not found",
+        message: "Interview request not found",
       });
     }
 
-    const interviewRequest = interviewer.interviewRequests[0];
-    const { candidateId, candidateName, position, date } = interviewRequest;
+    if (status === "Approved") {
+      const googleMeetLinks = [
+        "https://meet.google.com/xbn-baxk-deo",
+        "https://meet.google.com/xbn-baxk-deo",
+      ];
+      const meetLink =
+        googleMeetLinks[Math.floor(Math.random() * googleMeetLinks.length)];
 
-    if (!date || isNaN(new Date(date).getTime())) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid or missing interview date.",
-      });
-    }
-
-    // Generate or retrieve the Google Meet link
-    let googleMeetLink = interviewRequest.googleMeetLink;
-
-    if (!googleMeetLink) {
-      googleMeetLink = await generateGoogleMeetLink(interviewRequestId);
-
-      await Interviewer.updateOne(
+      const interviewer = await Interviewer.findOne(
         { "interviewRequests._id": interviewRequestId },
-        { $set: { "interviewRequests.$.googleMeetLink": googleMeetLink } }
+        { email: 1, firstName: 1, "interviewRequests.$": 1 }
       );
+
+      if (!interviewer || !interviewer.email) {
+        console.error(
+          "Interviewer not found or email is missing:",
+          interviewer
+        );
+        return res.status(404).json({
+          success: false,
+          message: "Interviewer not found or email is missing.",
+        });
+      }
+
+      const interviewRequest = interviewer.interviewRequests[0];
+      const candidate = await Candidate.findById(interviewRequest.candidateId);
+
+      if (!candidate) {
+        return res.status(404).json({
+          success: false,
+          message: "Candidate not found",
+        });
+      }
+
+      const formatDateTime = (date) => {
+        const options = {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZoneName: "short",
+        };
+        return new Date(date).toLocaleString("en-US", options);
+      };
+
+      const formattedDate = formatDateTime(interviewRequest.date);
+
+      // Generate email content using templates
+      const interviewerEmail = interviewerTemplate(
+        interviewer.firstName,
+        candidate.firstName,
+        formattedDate,
+        meetLink
+      );
+
+      const candidateEmail = candidateTemplate(
+        candidate.firstName,
+        formattedDate,
+        meetLink
+      );
+
+      try {
+        await sendEmail(
+          interviewer.email,
+          "Interview Scheduled",
+          "",
+          interviewerEmail
+        );
+        console.log("Interviewer email sent successfully.");
+
+        await sendEmail(
+          candidate.email,
+          "Interview Scheduled",
+          "",
+          candidateEmail
+        );
+        console.log("Candidate email sent successfully.");
+      } catch (emailError) {
+        console.error("Error sending emails:", emailError.message);
+      }
     }
-
-    const candidate = await Candidate.findById(candidateId);
-
-    if (!candidate) {
-      return res.status(404).json({
-        success: false,
-        message: "Candidate not found",
-      });
-    }
-
-    if (!candidate.googleMeetLink || candidate.googleMeetLink !== googleMeetLink) {
-      candidate.googleMeetLink = googleMeetLink;
-      await candidate.save();
-    }
-
-    // Prepare email content and send
-    const formattedDate = new Date(date).toUTCString();
-    const availability = interviewer.availability.dates.find(
-      (d) =>
-        new Date(d.date).toISOString().split("T")[0] ===
-        new Date(date).toISOString().split("T")[0]
-    );
-
-    if (!availability) {
-      return res.status(404).json({
-        success: false,
-        message: "Availability details not found for the specified date",
-      });
-    }
-
-    const { from, to } = availability;
-    const fromGMT = `${from} GMT`;
-    const toGMT = `${to} GMT`;
-
-    const interviewerSubject = `Interview Scheduled for ${candidateName} - ${position}`;
-    const interviewerHtml = `
-      <p>Dear ${interviewer.firstName} ${interviewer.lastName},</p>
-      <p>The interview for <strong>${candidateName}</strong> is confirmed.</p>
-      <p><strong>Position:</strong> ${position}</p>
-      <p><strong>Date:</strong> ${formattedDate}</p>
-      <p><strong>From:</strong> ${fromGMT}</p>
-      <p><strong>To:</strong> ${toGMT}</p>
-      <p>Join the Google Meet at: <a href="${googleMeetLink}">${googleMeetLink}</a></p>
-    `;
-
-    const candidateSubject = `Your Interview for ${position} - ${formattedDate}`;
-    const candidateHtml = `
-      <p>Dear ${candidate.firstName} ${candidate.lastName},</p>
-      <p>Your interview for <strong>${position}</strong> is confirmed.</p>
-      <p><strong>Date:</strong> ${formattedDate}</p>
-      <p><strong>From:</strong> ${fromGMT}</p>
-      <p><strong>To:</strong> ${toGMT}</p>
-      <p>Join the Google Meet at: <a href="${googleMeetLink}">${googleMeetLink}</a></p>
-    `;
-
-    await sendEmail(interviewer.email, interviewerSubject, "", interviewerHtml);
-    await sendEmail(candidate.email, candidateSubject, "", candidateHtml);
 
     return res.status(200).json({
       success: true,
-      message: "Interview request status updated and emails sent with the same link",
+      message: `Interview request ${
+        status === "Approved" ? "approved" : "cancelled"
+      } successfully`,
     });
   } catch (error) {
     console.error("Error updating interview request:", error.message);
@@ -313,41 +320,5 @@ export const updateInterviewRequest = async (req, res) => {
       success: false,
       message: error.message,
     });
-  }
-};
-
-export const handleGoogleCallback = async (req, res) => {
-  const { code } = req.query;
-
-  if (!code) {
-    return res.status(400).json({ success: false, message: "No code provided." });
-  }
-
-  try {
-    const oAuth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-
-    // Exchange code for tokens
-    const { tokens } = await oAuth2Client.getToken(code);
-    oAuth2Client.setCredentials(tokens);
-
-    // Now you can use the oAuth2Client to make requests to Google APIs (e.g., Google Calendar)
-    const calendar = google.calendar({ version: 'v3', auth: oAuth2Client });
-
-    // Example: Get the list of events from the calendar
-    const events = await calendar.events.list({
-      calendarId: 'primary',
-    });
-
-    console.log('Events:', events.data.items);
-
-    // Save the tokens and provide them to the user or use them for API calls
-    res.json({ success: true, message: "Google OAuth success", events });
-  } catch (error) {
-    console.error('Error during Google OAuth callback:', error);
-    res.status(500).json({ success: false, message: error.message });
   }
 };
