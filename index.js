@@ -10,12 +10,10 @@ dotenv.config();
 
 const app = express();
 
-// Middleware
 app.use(morgan("dev"));
 app.use(cors());
 app.use(express.json());
 
-// Basic route
 app.use("/candidate", candidateRoutes);
 app.use("/interviewer", interviewerRoutes);
 

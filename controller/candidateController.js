@@ -10,18 +10,13 @@ import {
   importFromLinkedIn as importFromLinkedInService,
   getInterviewers as getInterviewersService,
   scheduleInterview as scheduleInterviewService,
-  getScheduledInterviews as getScheduledInterviewsService,
+  getScheduledInterviewsService,
 } from "../services/candidateService.js";
 
-// Register candidate and send OTP
 export const registerCandidate = async (req, res) => {
   try {
     const { email } = req.body;
-
-    // Generate OTP
     const otp = generateOtp();
-
-    // Send OTP to the email
     await sendOtp(email, otp);
 
     return res.status(200).json({
@@ -34,7 +29,6 @@ export const registerCandidate = async (req, res) => {
   }
 };
 
-// Verify OTP and complete registration
 export const verifyOtpAndRegister = async (req, res) => {
   try {
     const { otp, email, password, ...rest } = req.body;
@@ -69,7 +63,6 @@ export const verifyOtpAndRegister = async (req, res) => {
   }
 };
 
-// Login candidate
 export const loginCandidate = async (req, res) => {
   try {
     await loginCandidateService(req.body, res);
@@ -78,7 +71,6 @@ export const loginCandidate = async (req, res) => {
   }
 };
 
-// Get candidate profile
 export const getCandidateProfile = async (req, res) => {
   try {
     await getProfile(req.user.id, res);
@@ -87,7 +79,6 @@ export const getCandidateProfile = async (req, res) => {
   }
 };
 
-// Update candidate profile
 export const updateCandidateProfile = async (req, res) => {
   try {
     await updateProfile(req.user.id, req.body, res);
@@ -96,7 +87,6 @@ export const updateCandidateProfile = async (req, res) => {
   }
 };
 
-// Delete candidate profile
 export const deleteCandidateProfile = async (req, res) => {
   try {
     await deleteProfile(req.user.id, res);
@@ -105,7 +95,6 @@ export const deleteCandidateProfile = async (req, res) => {
   }
 };
 
-// Import resume data to profile
 export const importFromResume = async (req, res) => {
   try {
     await importFromResumeService(req.user.id, req.body.resumeData, res);
@@ -114,7 +103,6 @@ export const importFromResume = async (req, res) => {
   }
 };
 
-// Import LinkedIn data to profile
 export const importFromLinkedIn = async (req, res) => {
   try {
     await importFromLinkedInService(req.user.id, req.body.linkedInData, res);
@@ -123,7 +111,6 @@ export const importFromLinkedIn = async (req, res) => {
   }
 };
 
-// Get list of interviewers
 export const getInterviewers = async (req, res) => {
   try {
     await getInterviewersService(res);
@@ -132,7 +119,6 @@ export const getInterviewers = async (req, res) => {
   }
 };
 
-// Schedule interview for a candidate
 export const scheduleInterview = async (req, res) => {
   const data = req.body;
 
@@ -142,11 +128,10 @@ export const scheduleInterview = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// Get all scheduled interviews for a candidate
 export const getScheduledInterviews = async (req, res) => {
   try {
-    await getScheduledInterviewsService(req.user.id, res);
+    const result = await getScheduledInterviewsService(req.user.id);
+    return res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

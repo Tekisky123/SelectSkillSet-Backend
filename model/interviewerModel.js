@@ -20,13 +20,20 @@ const interviewerSchema = new mongoose.Schema({
       position: String,
       date: String,
       time: String,
+      status: {
+        type: String,
+        enum: ["Requested", "Approved", "Cancelled"],
+        default: "Requested",
+      },
+      googleMeetLink: { type: String },
     },
   ],
-  
   availability: {
     dates: [
       {
-        date: { type: Date, required: true }, 
+        date: { type: Date, required: true },
+        from: { type: String, required: true },
+        to: { type: String, required: true },
       },
     ],
   },

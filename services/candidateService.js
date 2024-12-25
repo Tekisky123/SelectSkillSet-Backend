@@ -2,8 +2,8 @@ import bcrypt from "bcrypt";
 import { Candidate } from "../model/candidateModel.js";
 import generateToken from "../middleware/generateToken.js";
 import { Interviewer } from "../model/interviewerModel.js";
+import mongoose from "mongoose";
 
-// Register candidate in the database after OTP verification
 export const registerCandidate = async ({ email, password, ...rest }) => {
   try {
     const candidateExist = await Candidate.findOne({ email });
@@ -65,7 +65,6 @@ export const getProfile = async (candidateId, res) => {
   return res.status(200).json({ success: true, profile: candidate });
 };
 
-// Update candidate profile
 export const updateProfile = async (candidateId, data, res) => {
   const allowedUpdates = [
     "firstName",
@@ -100,7 +99,6 @@ export const updateProfile = async (candidateId, data, res) => {
   return res.status(200).json({ success: true, updatedProfile: candidate });
 };
 
-// Delete candidate profile
 export const deleteProfile = async (candidateId, res) => {
   const candidate = await Candidate.findByIdAndDelete(candidateId);
   if (!candidate) {
@@ -113,7 +111,6 @@ export const deleteProfile = async (candidateId, res) => {
     .json({ success: true, message: "Profile deleted successfully" });
 };
 
-// Import resume data
 export const importFromResume = async (candidateId, resumeData, res) => {
   const candidate = await Candidate.findByIdAndUpdate(
     candidateId,
@@ -126,7 +123,6 @@ export const importFromResume = async (candidateId, resumeData, res) => {
   return res.status(200).json({ success: true, updatedProfile: candidate });
 };
 
-// Import LinkedIn data
 export const importFromLinkedIn = async (candidateId, linkedInData, res) => {
   const candidate = await Candidate.findByIdAndUpdate(
     candidateId,
@@ -141,12 +137,10 @@ export const importFromLinkedIn = async (candidateId, linkedInData, res) => {
 
 export const getInterviewers = async (res) => {
   try {
-    // Fetch all interviewers
     const interviewers = await Interviewer.find().select(
       "firstName experience availability totalInterviews price profilePhoto jobTitle"
     );
 
-    // Filter interviewers that have all required fields populated
     const filteredInterviewers = interviewers.filter((interviewer) => {
       return (
         interviewer.experience &&
@@ -158,14 +152,11 @@ export const getInterviewers = async (res) => {
       );
     });
 
-    // If no interviewers meet the criteria, return 404
     if (filteredInterviewers.length === 0) {
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "No interviewers found with complete information",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "No interviewers found with complete information",
+      });
     }
 
     return res
@@ -173,89 +164,138 @@ export const getInterviewers = async (res) => {
       .json({ success: true, interviewers: filteredInterviewers });
   } catch (err) {
     console.error(err);
-    return res
-      .status(500)
-      .json({
-        success: false,
-        message: "An error occurred while fetching interviewers",
-      });
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching interviewers",
+    });
   }
 };
 
 export const scheduleInterview = async (candidateId, data, res) => {
   try {
-    const { interviewerId, date, price } = data;
+    const { interviewerId, date, price, from, to } = data;
 
-    if (!interviewerId || !date || !price) {
+    if (!interviewerId || !date || !price || !from || !to) {
       return res.status(400).json({
         success: false,
-        message: "interviewerId, date, and price are required",
+        message: "interviewerId, date, price, from, and to are required",
       });
     }
 
     const candidate = await Candidate.findById(candidateId);
     if (!candidate) {
-      return res.status(404).json({ success: false, message: "Candidate not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Candidate not found" });
     }
 
     const isAlreadyScheduled = candidate.scheduledInterviews.some(
-      (interview) => new Date(interview.date).toISOString() === new Date(date).toISOString()
+      (interview) =>
+        new Date(interview.date).toISOString() === new Date(date).toISOString()
     );
 
     if (isAlreadyScheduled) {
       return res.status(400).json({
         success: false,
-        message: "An interview is already scheduled on this date for this candidate.",
+        message:
+          "An interview is already scheduled on this date for this candidate.",
       });
     }
 
+    const interviewRequestId = new mongoose.Types.ObjectId();
+
     const interviewDetails = {
+      _id: interviewRequestId,
       interviewerId,
-      date: new Date(date),  // Ensure the date is a Date object
-      price: price,
-      status: "Scheduled",
+      date: new Date(date),
+      price,
+      from,
+      to,
     };
 
-    // Save interview details in candidate's scheduled interviews
     candidate.scheduledInterviews.push(interviewDetails);
     await candidate.save();
 
     const interviewer = await Interviewer.findById(interviewerId);
     if (!interviewer) {
-      return res.status(404).json({ success: false, message: "Interviewer not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Interviewer not found" });
     }
 
-    // Push the interview request into interviewer's interviewRequests array
     interviewer.interviewRequests.push({
+      _id: interviewRequestId,
+      candidateId: candidate._id,
       candidateName: `${candidate.firstName} ${candidate.lastName}`,
       position: candidate.jobTitle,
-      date: new Date(date),  // Ensure date is a Date object
+      date: new Date(date),
       time: new Date(date).toLocaleTimeString(),
-      candidateId: candidate._id,
+      from,
+      to,
     });
+
     await interviewer.save();
 
     return res.status(201).json({
       success: true,
-      interviews: candidate.scheduledInterviews,
+      interviewRequestId,
+      message: "Interview scheduled successfully.",
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ success: false, message: "Internal server error" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error" });
   }
 };
+export const getScheduledInterviewsService = async (candidateId) => {
+  try {
+    const candidate = await Candidate.findById(candidateId).populate({
+      path: "scheduledInterviews.interviewerId",
+      select: "firstName lastName profilePhoto",
+    });
 
+    if (!candidate) {
+      return { success: false, message: "Candidate not found" };
+    }
 
-export const getScheduledInterviews = async (candidateId, res) => {
-  const candidate = await Candidate.findById(candidateId).populate(
-    "scheduledInterviews.interviewerId"
-  );
-  if (!candidate) {
-    return res
-      .status(404)
-      .json({ success: false, message: "No interviews found" });
+    console.log("Candidate interviews:", candidate.scheduledInterviews);
+
+    return {
+      success: true,
+      interviews: (candidate.scheduledInterviews || []).map((interview) => {
+        const interviewerName = interview?.interviewerId
+          ? `${interview?.interviewerId.firstName} ${interview?.interviewerId.lastName}`
+          : "Interviewer not available";
+        const interviewerPhoto = interview?.interviewerId?.profilePhoto || "";
+
+        const date = interview?.date
+          ? new Date(interview.date).toLocaleDateString("en-IN")
+          : "Date not specified";
+
+        // Ensure that `from` and `to` are returned even if they are not set
+        const from = interview?.from || "Time not specified";
+        const to = interview?.to || "Time not specified";
+        const status = interview?.status || "Status not specified";
+
+        console.log("Interview status:", status);
+
+        return {
+          id: interview?._id || "N/A",
+          interviewerName: interviewerName,
+          interviewerPhoto: interviewerPhoto,
+          date: date,
+          from: from, // Adding `from` in response
+          to: to, // Adding `to` in response
+          status: status,
+        };
+      }),
+    };
+  } catch (error) {
+    console.error("Error in getScheduledInterviewsService:", error);
+    return {
+      success: false,
+      message: error.message || "Internal server error",
+    };
   }
-  return res
-    .status(200)
-    .json({ success: true, interviews: candidate.scheduledInterviews });
 };

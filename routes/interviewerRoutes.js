@@ -6,6 +6,7 @@ import {
   getAvailability,
   getInterviewerProfile,
   getInterviewRequests,
+  handleGoogleCallback,
   loginInterviewer,
   registerInterviewer,
   updateInterviewerProfile,
@@ -23,6 +24,8 @@ interviewerRoutes.delete("/deleteAvailability", authenticate, deleteAvailability
 interviewerRoutes.put("/updateProfile", authenticate, updateInterviewerProfile);
 interviewerRoutes.get("/getInterviewRequests", authenticate, getInterviewRequests);
 interviewerRoutes.put("/updateInterviewRequest", authenticate, updateInterviewRequest);
+interviewerRoutes.get("/google/callback", handleGoogleCallback);
+
 
 // interviewerRoutes.delete("/profile", deleteCandidateProfile);
 
