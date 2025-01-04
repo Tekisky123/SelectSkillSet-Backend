@@ -11,7 +11,7 @@ import dotenv from "dotenv";
 import { sendEmail } from "../helper/emailService.js";
 import { interviewerTemplate } from "../templates/interviewerTemplate.js";
 import { candidateTemplate } from "../templates/candidateTemplate.js";
-
+import moment from "moment";
 
 dotenv.config();
 export const registerInterviewer = async (req, res) => {
@@ -47,20 +47,16 @@ export const addAvailability = async (req, res) => {
         .json({ success: false, message: "Invalid dates format." });
     }
 
-    // Convert string dates to Date objects and ensure the payload is valid
+    // Store the dates exactly as received (no parsing or modification)
     const dateObjects = dates.map((date) => {
-      const parsedDate = new Date(date.date); // Convert string to Date object
-      if (isNaN(parsedDate.getTime())) {
-        throw new Error(`Invalid date format for ${date.date}`);
-      }
       return {
-        date: parsedDate, // Store the parsed date
-        from: date.from, // Keep the 'from' and 'to' time as-is
-        to: date.to,
+        date: date.date, // Keep the original string format for the date
+        from: date.from, // Keep the original string format for the 'from' time
+        to: date.to, // Keep the original string format for the 'to' time
       };
     });
 
-    // Update the Interviewer's availability
+    // Save the availability data in the database
     const updatedInterviewer = await Interviewer.findByIdAndUpdate(
       req.user.id,
       { $addToSet: { "availability.dates": { $each: dateObjects } } },
@@ -73,9 +69,17 @@ export const addAvailability = async (req, res) => {
         .json({ success: false, message: "Interviewer not found." });
     }
 
+    // Send the exact format of the dates back in the response
     res.status(200).json({
       success: true,
-      availability: updatedInterviewer.availability,
+      availability: {
+        dates: updatedInterviewer.availability.dates.map((item) => ({
+          date: item.date, // Send date as a string
+          from: item.from, // Send 'from' time as a string
+          to: item.to, // Send 'to' time as a string
+          _id: item._id, // Include _id if necessary
+        })),
+      },
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -83,26 +87,24 @@ export const addAvailability = async (req, res) => {
 };
 
 export const deleteAvailability = async (req, res) => {
-  const { date } = req.body;
+  const { id } = req.body; // Use id instead of date
 
-  if (!date) {
+  if (!id) {
     return res
       .status(400)
-      .json({ success: false, message: "Date is required" });
+      .json({ success: false, message: "Availability ID is required" });
   }
 
   try {
-    const dateToDelete = new Date(date);
-
     const result = await Interviewer.updateOne(
-      { "availability.dates.date": dateToDelete },
-      { $pull: { "availability.dates": { date: dateToDelete } } }
+      { "availability.dates._id": id }, // Match by _id
+      { $pull: { "availability.dates": { _id: id } } } // Pull the availability with that id
     );
 
     if (result.modifiedCount === 0) {
       return res.status(404).json({
         success: false,
-        message: `No availability found for the provided date: ${date}`,
+        message: `No availability found for the provided ID`,
       });
     }
 
@@ -139,12 +141,46 @@ export const updateInterviewerProfile = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+const formatDateTime = (date, from, to) => {
+  const options = {
+    weekday: "long", // Day of the week
+    year: "numeric",
+    month: "numeric", // Numeric month
+    day: "numeric", // Numeric day
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZoneName: "short", // Include time zone info
+  };
+
+  const formattedDate = new Date(date).toLocaleString("en-US", options);
+
+  // Convert start and end time to GMT
+  const formatTime = (time) => {
+    return new Date(`1970-01-01T${time}Z`).toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "GMT",
+    });
+  };
+
+  const formattedFromTime = from ? formatTime(from) : "N/A";
+  const formattedToTime = to ? formatTime(to) : "N/A";
+
+  return {
+    formattedDate,
+    formattedFromTime,
+    formattedToTime,
+  };
+};
+
 export const getInterviewRequests = async (req, res) => {
   try {
     const interviewerId = req.user.id;
 
     const interviewer = await Interviewer.findById(interviewerId).populate(
-      "interviewRequests.candidateId"
+      "interviewRequests.candidateId",
+      "firstName lastName profilePhoto"
     );
 
     if (!interviewer) {
@@ -161,19 +197,49 @@ export const getInterviewRequests = async (req, res) => {
     }
 
     const formattedRequests = interviewer.interviewRequests.map((request) => {
-      const { _id, candidateName, position, date, status } = request;
+      const { _id, candidateId, position, date, time, status } = request;
+
+      console.log(request, "hiiiiii");
+
+      // Ensure date is in ISO format
       const formattedDate = new Date(date);
       const dayName = formattedDate.toLocaleString("en-IN", {
         weekday: "long",
       });
       const formattedDateStr = formattedDate.toLocaleDateString("en-IN");
 
+      // Function to format individual time parts (e.g., "02:00 PM")
+      const formatTimePart = (timePart) => {
+        if (!timePart || typeof timePart !== "string") return "N/A";
+        const parsedTime = new Date(`1970-01-01T${timePart}Z`);
+        if (isNaN(parsedTime.getTime())) return timePart; // Return as-is if not in valid ISO format
+        return parsedTime.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+          timeZone: "GMT",
+        });
+      };
+
+      // Split time into start and end if it's valid
+      let timeRange = "N/A";
+      if (time && typeof time === "string") {
+        const [start, end] = time.split(" - ").map(formatTimePart);
+        timeRange = `${start} - ${end}`;
+      }
+
+      const firstName = candidateId?.firstName || "N/A";
+      const lastName = candidateId?.lastName || "";
+      const shortName = `${firstName} ${lastName.charAt(0).toUpperCase()}...`;
+
       return {
         id: _id,
-        candidateName,
-        position,
+        name: shortName,
+        profilePhoto: candidateId?.profilePhoto || null,
+        position: position || "N/A",
         date: formattedDateStr,
         day: dayName,
+        time: timeRange,
         status,
       };
     });
@@ -187,8 +253,6 @@ export const getInterviewRequests = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
-
-
 
 export const updateInterviewRequest = async (req, res) => {
   try {
@@ -220,7 +284,23 @@ export const updateInterviewRequest = async (req, res) => {
     if (updateResult.matchedCount === 0) {
       return res.status(404).json({
         success: false,
-        message: "Interview request not found",
+        message: "Interview request not found in Interviewer model",
+      });
+    }
+
+    const candidateUpdateResult = await Candidate.updateOne(
+      { "scheduledInterviews._id": interviewRequestId },
+      {
+        $set: {
+          "scheduledInterviews.$.status": status,
+        },
+      }
+    );
+
+    if (candidateUpdateResult.matchedCount === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Interview request not found in Candidate model",
       });
     }
 
@@ -238,10 +318,6 @@ export const updateInterviewRequest = async (req, res) => {
       );
 
       if (!interviewer || !interviewer.email) {
-        console.error(
-          "Interviewer not found or email is missing:",
-          interviewer
-        );
         return res.status(404).json({
           success: false,
           message: "Interviewer not found or email is missing.",
@@ -249,6 +325,18 @@ export const updateInterviewRequest = async (req, res) => {
       }
 
       const interviewRequest = interviewer.interviewRequests[0];
+
+      if (
+        !interviewRequest ||
+        !interviewRequest.date ||
+        !interviewRequest.time
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: "Incomplete interview request data (date or time missing).",
+        });
+      }
+
       const candidate = await Candidate.findById(interviewRequest.candidateId);
 
       if (!candidate) {
@@ -258,33 +346,31 @@ export const updateInterviewRequest = async (req, res) => {
         });
       }
 
-      const formatDateTime = (date) => {
-        const options = {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZoneName: "short",
-        };
-        return new Date(date).toLocaleString("en-US", options);
-      };
+      const [emailFromTime, emailToTime] = interviewRequest.time.split(" - ");
+      const rawDate = new Date(interviewRequest.date).toDateString();
+      const emailDate = rawDate.replace(/GMT.*$/, "GMT");
 
-      const formattedDate = formatDateTime(interviewRequest.date);
+      const date = `${emailDate} `;
+      const time = `from ${emailFromTime} to ${emailToTime}`;
 
-      // Generate email content using templates
+      // Send the interviewer's ID to the candidate and the candidate's ID to the interviewer
       const interviewerEmail = interviewerTemplate(
         interviewer.firstName,
         candidate.firstName,
-        formattedDate,
-        meetLink
+        date,
+        time,
+        meetLink,
+        interviewRequest._id, // Sending interview request ID to interviewer
+        candidate._id // Sending candidate ID to interviewer
       );
 
       const candidateEmail = candidateTemplate(
         candidate.firstName,
-        formattedDate,
-        meetLink
+        date,
+        time,
+        meetLink,
+        interviewRequest._id, // Sending interview request ID to candidate
+        interviewer._id // Sending interviewer ID to candidate
       );
 
       try {

@@ -68,17 +68,26 @@ export const getInterviewerProfileServices = async (interviewerId, res) => {
   return res.status(200).json({ success: true, profile: interviewer });
 };
 export const getAvailabilityServices = async (interviewerId) => {
-  const interviewer = await Interviewer.findById(interviewerId).select("availability.dates");
+  const interviewer = await Interviewer.findById(interviewerId).select(
+    "availability.dates"
+  );
 
-  if (!interviewer || !interviewer.availability || !interviewer.availability.dates) {
+  if (
+    !interviewer ||
+    !interviewer.availability ||
+    !interviewer.availability.dates
+  ) {
     throw new Error("Availability not found");
   }
 
   return interviewer.availability.dates;
 };
 
-
-export const updateInterviewerProfileServices = async (interviewerId, data, res) => {
+export const updateInterviewerProfileServices = async (
+  interviewerId,
+  data,
+  res
+) => {
   try {
     const allowedUpdates = [
       "firstName",
@@ -89,13 +98,26 @@ export const updateInterviewerProfileServices = async (interviewerId, data, res)
       "profilePhoto",
       "experience",
       "price",
-      "countryCode", 
+      "countryCode",
+      "skills",
     ];
+
     const updates = Object.keys(data);
+    if (data.skills && typeof data.skills === "string") {
+      try {
+        data.skills = JSON.parse(data.skills);
+      } catch (err) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid skills format!" });
+      }
+    }
 
     const isAllowed = updates.every((key) => allowedUpdates.includes(key));
     if (!isAllowed) {
-      return res.status(400).json({ success: false, message: "Invalid updates!" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid updates!" });
     }
 
     const interviewer = await Interviewer.findByIdAndUpdate(
@@ -108,7 +130,9 @@ export const updateInterviewerProfileServices = async (interviewerId, data, res)
     );
 
     if (!interviewer) {
-      return res.status(404).json({ success: false, message: "Profile update failed" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Profile update failed" });
     }
 
     return res.status(200).json({ success: true, updatedProfile: interviewer });

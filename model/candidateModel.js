@@ -13,6 +13,7 @@ const candidateSchema = new mongoose.Schema(
     profilePhoto: { type: String },
     resume: { type: String },
     linkedIn: { type: String },
+    skills: [{ type: String }],
     statistics: {
       monthlyStatistics: {
         completedInterviews: { type: Number, default: 0 },
@@ -32,10 +33,10 @@ const candidateSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "Interviewer",
         },
-        date: { type: Date, required: true },
+        date: { type: String, required: true },
         from: { type: String, required: true },
         to: { type: String, required: true },
-        price: { type: Number },
+        price: { type: String },
         status: {
           type: String,
           enum: ["Requested", "Approved", "Cancelled"],

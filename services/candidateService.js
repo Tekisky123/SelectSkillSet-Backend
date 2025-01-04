@@ -75,6 +75,8 @@ export const updateProfile = async (candidateId, data, res) => {
     "profilePhoto",
     "linkedIn",
     "countryCode",
+    "skills",
+    "resume",
   ];
   const updates = Object.keys(data);
 
@@ -83,6 +85,17 @@ export const updateProfile = async (candidateId, data, res) => {
     return res
       .status(400)
       .json({ success: false, message: "Invalid updates!" });
+  }
+
+  // Handle skills field separately
+  if (data.skills && typeof data.skills === "string") {
+    try {
+      data.skills = JSON.parse(data.skills);
+    } catch (err) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid skills format!" });
+    }
   }
 
   const candidate = await Candidate.findByIdAndUpdate(candidateId, data, {
@@ -189,28 +202,35 @@ export const scheduleInterview = async (candidateId, data, res) => {
         .json({ success: false, message: "Candidate not found" });
     }
 
-    const isAlreadyScheduled = candidate.scheduledInterviews.some(
-      (interview) =>
-        new Date(interview.date).toISOString() === new Date(date).toISOString()
-    );
+    // const isAlreadyScheduled = candidate.scheduledInterviews.some(
+    //   (interview) =>
+    //     new Date(interview.date).toISOString() === new Date(date).toISOString()
+    // );
 
-    if (isAlreadyScheduled) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "An interview is already scheduled on this date for this candidate.",
-      });
-    }
+    // if (isAlreadyScheduled) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message:
+    //       "An interview is already scheduled on this date for this candidate.",
+    //   });
+    // }
 
     const interviewRequestId = new mongoose.Types.ObjectId();
 
+    // Create the interview date and get the day name
+    const interviewDate = new Date(date);
+    const dayName = interviewDate.toLocaleDateString("en-US", {
+      weekday: "long",
+    });
+
+    // Keep the original format of the time, no conversion
     const interviewDetails = {
       _id: interviewRequestId,
       interviewerId,
-      date: new Date(date),
+      date: `${dayName}, ${interviewDate.toLocaleDateString("en-US")}`, // Add day name without changing date format
       price,
-      from,
-      to,
+      from, // Keep original 'from' time (12-hour format)
+      to, // Keep original 'to' time (12-hour format)
     };
 
     candidate.scheduledInterviews.push(interviewDetails);
@@ -223,15 +243,16 @@ export const scheduleInterview = async (candidateId, data, res) => {
         .json({ success: false, message: "Interviewer not found" });
     }
 
+    // Store the interview details for the interviewer
     interviewer.interviewRequests.push({
       _id: interviewRequestId,
       candidateId: candidate._id,
       candidateName: `${candidate.firstName} ${candidate.lastName}`,
       position: candidate.jobTitle,
-      date: new Date(date),
-      time: new Date(date).toLocaleTimeString(),
-      from,
-      to,
+      date: `${dayName}, ${interviewDate.toLocaleDateString("en-US")}`, // Add day name
+      time: `${from} - ${to}`, // Keep original time range
+      from, // Keep original 'from' time
+      to, // Keep original 'to' time
     });
 
     await interviewer.save();
@@ -248,11 +269,12 @@ export const scheduleInterview = async (candidateId, data, res) => {
       .json({ success: false, message: "Internal server error" });
   }
 };
+
 export const getScheduledInterviewsService = async (candidateId) => {
   try {
     const candidate = await Candidate.findById(candidateId).populate({
       path: "scheduledInterviews.interviewerId",
-      select: "firstName lastName profilePhoto",
+      select: "firstName lastName profilePhoto", // Ensure profilePhoto is selected
     });
 
     if (!candidate) {
@@ -264,10 +286,11 @@ export const getScheduledInterviewsService = async (candidateId) => {
     return {
       success: true,
       interviews: (candidate.scheduledInterviews || []).map((interview) => {
-        const interviewerName = interview?.interviewerId
-          ? `${interview?.interviewerId.firstName} ${interview?.interviewerId.lastName}`
+        const interviewer = interview?.interviewerId;
+        const interviewerName = interviewer
+          ? `${interviewer.firstName} ${interviewer.lastName}`
           : "Interviewer not available";
-        const interviewerPhoto = interview?.interviewerId?.profilePhoto || "";
+        const interviewerPhoto = interviewer?.profilePhoto || ""; // Add profilePhoto here
 
         const date = interview?.date
           ? new Date(interview.date).toLocaleDateString("en-IN")
@@ -283,7 +306,7 @@ export const getScheduledInterviewsService = async (candidateId) => {
         return {
           id: interview?._id || "N/A",
           interviewerName: interviewerName,
-          interviewerPhoto: interviewerPhoto,
+          interviewerPhoto: interviewerPhoto, // Include profile photo in response
           date: date,
           from: from, // Adding `from` in response
           to: to, // Adding `to` in response

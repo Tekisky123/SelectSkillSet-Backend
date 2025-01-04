@@ -1,5 +1,6 @@
 import generateOtp from "../helper/generateOtp.js";
 import { otpStorage, sendOtp } from "../helper/sendOtp.js";
+import { Interviewer } from "../model/interviewerModel.js";
 import {
   registerCandidate as registerCandidateService,
   loginCandidate as loginCandidateService,
@@ -12,6 +13,7 @@ import {
   scheduleInterview as scheduleInterviewService,
   getScheduledInterviewsService,
 } from "../services/candidateService.js";
+import AWS from "aws-sdk";
 
 export const registerCandidate = async (req, res) => {
   try {
@@ -79,11 +81,71 @@ export const getCandidateProfile = async (req, res) => {
   }
 };
 
+const s3 = new AWS.S3({
+  accessKeyId: process.env.AWSS_OPEN_KEY,
+  secretAccessKey: process.env.AWSS_SEC_KEY,
+  region: process.env.AWSS_REGION,
+});
+
+// Helper function to upload a file to S3
+const uploadToS3 = async (file, folder) => {
+  try {
+    const params = {
+      Bucket: process.env.S3_BUCKET_NAME,
+      Key: `${folder}/${Date.now()}-${file.originalname}`,
+      Body: file.buffer,
+      ContentType: file.mimetype,
+    };
+
+    const result = await s3.upload(params).promise();
+    return result.Location; // S3 file URL
+  } catch (error) {
+    console.error("S3 Upload Error: ", error);
+    throw error; // Rethrow the error for the caller to handle
+  }
+};
+
+// Update Candidate Profile
 export const updateCandidateProfile = async (req, res) => {
   try {
-    await updateProfile(req.user.id, req.body, res);
+    const { id } = req.user;
+    const { resume, profilePhoto } = req.files;
+
+    // Upload files to S3 if present
+    const updates = { ...req.body };
+    if (resume) {
+      updates.resume = await uploadToS3(resume[0], "resumes");
+    }
+    if (profilePhoto) {
+      updates.profilePhoto = await uploadToS3(
+        profilePhoto[0],
+        "profile-photos"
+      );
+    }
+
+    // Perform update
+    await updateProfile(id, updates, res);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getInterviewerProfile = async (req, res) => {
+  const id = req.params.id;
+  try {
+    const interviewer = await Interviewer.findById(id).select(
+      "firstName lastName jobTitle profilePhoto experience totalInterviews price skills"
+    );
+
+    if (!interviewer) {
+      return res.status(404).json({ message: "Interviewer not found" });
+    }
+
+    // Send the interviewer data in the response
+    res.status(200).json(interviewer);
+  } catch (error) {
+    console.error("Error fetching interviewer profile:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 };
 

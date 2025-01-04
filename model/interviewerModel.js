@@ -13,6 +13,7 @@ const interviewerSchema = new mongoose.Schema({
   experience: { type: String },
   totalInterviews: { type: String },
   price: { type: String },
+  skills: [{ type: String }],
   interviewRequests: [
     {
       candidateId: { type: mongoose.Schema.Types.ObjectId, ref: "Candidate" },
@@ -31,7 +32,7 @@ const interviewerSchema = new mongoose.Schema({
   availability: {
     dates: [
       {
-        date: { type: Date, required: true },
+        date: { type: String, required: true },
         from: { type: String, required: true },
         to: { type: String, required: true },
       },
