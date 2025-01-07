@@ -1,8 +1,10 @@
 import express from "express";
 import multer from "multer";
 import {
+  addInterviewerFeedback,
   deleteCandidateProfile,
   getCandidateProfile,
+  getCandidateStatistics,
   getInterviewerProfile,
   getInterviewers,
   getScheduledInterviews,
@@ -46,5 +48,11 @@ candidateRoutes.post("/import/linkedin", importFromLinkedIn);
 candidateRoutes.get("/interviewers", getInterviewers);
 candidateRoutes.post("/schedule", authenticate, scheduleInterview);
 candidateRoutes.get("/myInterviews", authenticate, getScheduledInterviews);
+candidateRoutes.post("/add-interviewer-feedback", addInterviewerFeedback);
+candidateRoutes.get(
+  "/get-candidate-statistics",
+  authenticate,
+  getCandidateStatistics
+);
 
 export default candidateRoutes;

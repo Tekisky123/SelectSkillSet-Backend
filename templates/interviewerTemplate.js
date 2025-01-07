@@ -5,7 +5,8 @@ export const interviewerTemplate = (
   time,
   meetLink,
   interviewRequestId,
-  candidateId
+  candidateId,
+  url
 ) => `
   <!DOCTYPE html>
   <html lang="en">
@@ -30,7 +31,7 @@ export const interviewerTemplate = (
         overflow: hidden;
       }
       .header {
-        background-color: #0056b3;
+        background-color: #0077B5; /* LinkedIn Blue */
         color: #ffffff;
         padding: 30px;
         text-align: center;
@@ -40,7 +41,7 @@ export const interviewerTemplate = (
       }
       .sub-header {
         background-color: #f1f5f9;
-        color: #0056b3;
+        color: #0077B5; /* LinkedIn Blue */
         padding: 12px;
         text-align: center;
         font-size: 20px;
@@ -62,7 +63,7 @@ export const interviewerTemplate = (
         display: inline-block;
         margin: 20px 0;
         padding: 14px 30px;
-        background-color: #0056b3;
+        background-color: #0077B5; /* LinkedIn Blue */
         color: #ffffff !important;
         text-decoration: none;
         border-radius: 8px;
@@ -71,7 +72,7 @@ export const interviewerTemplate = (
         transition: background-color 0.3s ease;
       }
       .meet-link-btn:hover, .feedback-btn:hover {
-        background-color: #003f8c;
+        background-color: #006193; /* Darker LinkedIn Blue */
       }
       .footer {
         background-color: #f1f5f9;
@@ -82,7 +83,7 @@ export const interviewerTemplate = (
         border-radius: 0 0 12px 12px;
       }
       .footer a {
-        color: #0056b3;
+        color: #0077B5; /* LinkedIn Blue */
         text-decoration: none;
       }
     </style>
@@ -96,8 +97,8 @@ export const interviewerTemplate = (
         <p>Your interview with <strong>${candidateName}</strong> has been scheduled. Please find the details below:</p>
         
         <div class="details">
-          <p><strong>From:</strong> ${date}</p>
-          <p><strong>To:</strong> ${time}</p>
+          <p><strong>Date:</strong> ${date}</p>
+          <p><strong>Time:</strong> ${time}</p>
           <p><strong>Meet Link:</strong> <a href="${meetLink}" target="_blank">${meetLink}</a></p>
         </div>
         
@@ -108,7 +109,7 @@ export const interviewerTemplate = (
         <p>We encourage you to provide feedback on the candidate after the interview is completed. Your valuable feedback helps improve our recruitment process and ensure the best fit for your organization.</p>
         <p>Click the button below to rate the candidate's performance and provide your insights:</p>
         
-        <a href="https://select-skill-set-testing.vercel.app/interviewer-feedback/${candidateId}/${interviewRequestId}" class="feedback-btn">Give Feedback on Candidate</a>
+        <a href="${url}/interviewer-feedback/${candidateId}/${interviewRequestId}" class="feedback-btn">Give Feedback on Candidate</a>
         
         <hr>
         

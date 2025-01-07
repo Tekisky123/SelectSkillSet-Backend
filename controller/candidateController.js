@@ -14,6 +14,9 @@ import {
   getScheduledInterviewsService,
 } from "../services/candidateService.js";
 import AWS from "aws-sdk";
+import { interviewerFeedbackTemplate } from "../templates/interviewerFeedbackTemplate.js";
+import { sendEmail } from "../helper/emailService.js";
+import { Candidate } from "../model/candidateModel.js";
 
 export const registerCandidate = async (req, res) => {
   try {
@@ -87,7 +90,6 @@ const s3 = new AWS.S3({
   region: process.env.AWSS_REGION,
 });
 
-// Helper function to upload a file to S3
 const uploadToS3 = async (file, folder) => {
   try {
     const params = {
@@ -98,20 +100,18 @@ const uploadToS3 = async (file, folder) => {
     };
 
     const result = await s3.upload(params).promise();
-    return result.Location; // S3 file URL
+    return result.Location;
   } catch (error) {
     console.error("S3 Upload Error: ", error);
-    throw error; // Rethrow the error for the caller to handle
+    throw error;
   }
 };
 
-// Update Candidate Profile
 export const updateCandidateProfile = async (req, res) => {
   try {
     const { id } = req.user;
     const { resume, profilePhoto } = req.files;
 
-    // Upload files to S3 if present
     const updates = { ...req.body };
     if (resume) {
       updates.resume = await uploadToS3(resume[0], "resumes");
@@ -123,7 +123,6 @@ export const updateCandidateProfile = async (req, res) => {
       );
     }
 
-    // Perform update
     await updateProfile(id, updates, res);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -141,7 +140,6 @@ export const getInterviewerProfile = async (req, res) => {
       return res.status(404).json({ message: "Interviewer not found" });
     }
 
-    // Send the interviewer data in the response
     res.status(200).json(interviewer);
   } catch (error) {
     console.error("Error fetching interviewer profile:", error);
@@ -196,5 +194,163 @@ export const getScheduledInterviews = async (req, res) => {
     return res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const addInterviewerFeedback = async (req, res) => {
+  const { interviewerId, interviewRequestId, feedback } = req.body;
+
+  if (
+    !interviewerId ||
+    !interviewRequestId ||
+    !feedback ||
+    typeof feedback !== "object"
+  ) {
+    return res
+      .status(400)
+      .json({ message: "Missing or invalid required fields." });
+  }
+
+  try {
+    const interviewer = await Interviewer.findById(interviewerId);
+    if (!interviewer) {
+      return res.status(404).json({ message: "Interviewer not found." });
+    }
+
+    const existingFeedback = interviewer.statistics.feedbacks.find(
+      (item) => item.interviewRequestId?.toString() === interviewRequestId
+    );
+
+    if (existingFeedback) {
+      return res
+        .status(400)
+        .json({ message: "Feedback for this interview already exists." });
+    }
+
+    const averageRating = calculateAverageRating(feedback);
+
+    interviewer.statistics.feedbacks.push({
+      interviewRequestId,
+      feedbackData: feedback,
+      rating: averageRating,
+    });
+
+    interviewer.statistics.completedInterviews += 1;
+    interviewer.statistics.totalAccepted += 1;
+    interviewer.statistics.totalFeedbackCount += 1;
+
+    const totalAccepted = interviewer.statistics.totalAccepted;
+    const currentAverage = interviewer.statistics.averageRating;
+
+    interviewer.statistics.averageRating =
+      (currentAverage * (totalAccepted - 1) + averageRating) / totalAccepted;
+
+    await interviewer.save();
+
+    const latestFeedbacks = interviewer.statistics.feedbacks
+      .slice(-3)
+      .map((item) => {
+        const feedbackData = item.feedbackData;
+        return Object.entries(feedbackData).map(([section, data]) => ({
+          section,
+          comment: data.comments || "No comment provided",
+          rating: data.rating || 0,
+        }));
+      });
+
+    const feedbackForEmail = latestFeedbacks.flat();
+
+    const url = process.env.WEBSITE_URL
+
+    const emailContent = interviewerFeedbackTemplate(
+      interviewer.firstName,
+      feedbackForEmail,
+      url
+    );
+    await sendEmail(
+      interviewer.email,
+      "Feedback Received for Your Interview",
+      "Feedback for your interview has been submitted.",
+      emailContent
+    );
+
+    return res
+      .status(200)
+      .json({ message: "Feedback added and email sent successfully." });
+  } catch (error) {
+    console.error("Error adding feedback:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error. Please try again later." });
+  }
+};
+
+const calculateAverageRating = (feedback) => {
+  const ratings = Object.values(feedback).map((item) => item.rating || 0);
+  return ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+};
+
+export const getCandidateStatistics = async (req, res) => {
+  try {
+    const candidateId = req.user.id;
+
+    if (!candidateId) {
+      return res.status(400).json({ message: "User ID is required." });
+    }
+
+    const candidate = await Candidate.findById(candidateId);
+
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate not found." });
+    }
+
+    const { statistics } = candidate;
+
+    // Enrich feedbacks with interview details
+    const enrichedFeedbacks = await Promise.all(
+      statistics.feedbacks.map(async (feedback) => {
+        // Find the scheduled interview details
+        const scheduledInterview = candidate.scheduledInterviews.find(
+          (interview) =>
+            interview._id.toString() === feedback.interviewRequestId.toString()
+        );
+
+        if (scheduledInterview) {
+          // Find the interviewer's details
+          const interviewer = await Interviewer.findById(
+            scheduledInterview.interviewerId
+          ).select("firstName lastName profilePhoto");
+
+          return {
+            ...feedback._doc, // Spread feedback fields
+            interviewDate: scheduledInterview.date,
+            interviewer: interviewer
+              ? {
+                  firstName: interviewer.firstName,
+                  lastName: interviewer.lastName,
+                  profilePhoto: interviewer.profilePhoto,
+                }
+              : null,
+          };
+        }
+
+        return feedback;
+      })
+    );
+
+    return res.status(200).json({
+      message: "Candidate statistics retrieved successfully.",
+      statistics: {
+        completedInterviews: statistics.completedInterviews,
+        averageRating: statistics.averageRating,
+        totalFeedbackCount: statistics.totalFeedbackCount,
+        feedbacks: enrichedFeedbacks,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching candidate statistics:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error. Please try again later." });
   }
 };

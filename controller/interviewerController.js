@@ -12,8 +12,11 @@ import { sendEmail } from "../helper/emailService.js";
 import { interviewerTemplate } from "../templates/interviewerTemplate.js";
 import { candidateTemplate } from "../templates/candidateTemplate.js";
 import moment from "moment";
+import { candidateFeedbackTemplate } from "../templates/candidateFeedbackTemplate.js";
 
 dotenv.config();
+
+const url = process.env.WEBSITE_URL;
 export const registerInterviewer = async (req, res) => {
   try {
     await registerInterviewerService(req.body, res);
@@ -199,8 +202,6 @@ export const getInterviewRequests = async (req, res) => {
     const formattedRequests = interviewer.interviewRequests.map((request) => {
       const { _id, candidateId, position, date, time, status } = request;
 
-      console.log(request, "hiiiiii");
-
       // Ensure date is in ISO format
       const formattedDate = new Date(date);
       const dayName = formattedDate.toLocaleString("en-IN", {
@@ -212,7 +213,7 @@ export const getInterviewRequests = async (req, res) => {
       const formatTimePart = (timePart) => {
         if (!timePart || typeof timePart !== "string") return "N/A";
         const parsedTime = new Date(`1970-01-01T${timePart}Z`);
-        if (isNaN(parsedTime.getTime())) return timePart; // Return as-is if not in valid ISO format
+        if (isNaN(parsedTime.getTime())) return timePart;
         return parsedTime.toLocaleTimeString("en-US", {
           hour: "2-digit",
           minute: "2-digit",
@@ -353,15 +354,15 @@ export const updateInterviewRequest = async (req, res) => {
       const date = `${emailDate} `;
       const time = `from ${emailFromTime} to ${emailToTime}`;
 
-      // Send the interviewer's ID to the candidate and the candidate's ID to the interviewer
       const interviewerEmail = interviewerTemplate(
         interviewer.firstName,
         candidate.firstName,
         date,
         time,
         meetLink,
-        interviewRequest._id, // Sending interview request ID to interviewer
-        candidate._id // Sending candidate ID to interviewer
+        interviewRequest._id,
+        candidate._id,
+        url
       );
 
       const candidateEmail = candidateTemplate(
@@ -369,8 +370,9 @@ export const updateInterviewRequest = async (req, res) => {
         date,
         time,
         meetLink,
-        interviewRequest._id, // Sending interview request ID to candidate
-        interviewer._id // Sending interviewer ID to candidate
+        interviewRequest._id,
+        interviewer._id,
+        url
       );
 
       try {
@@ -406,5 +408,165 @@ export const updateInterviewRequest = async (req, res) => {
       success: false,
       message: error.message,
     });
+  }
+};
+
+export const addCandidateFeedback = async (req, res) => {
+  const { candidateId, interviewRequestId, feedback } = req.body;
+
+  if (!candidateId || !interviewRequestId || !feedback) {
+    return res.status(400).json({ message: "Missing required fields." });
+  }
+
+  try {
+    const candidate = await Candidate.findById(candidateId);
+    if (!candidate) {
+      return res.status(404).json({ message: "Candidate not found." });
+    }
+
+    const candidateName = candidate.firstName;
+
+    const existingFeedback = candidate.statistics.feedbacks.find(
+      (item) => item.interviewRequestId.toString() === interviewRequestId
+    );
+
+    if (existingFeedback) {
+      return res
+        .status(400)
+        .json({ message: "Feedback for this interview already exists." });
+    }
+
+    const averageRating = calculateAverageRating(feedback);
+
+    // Push the feedback into the feedbacks array
+    candidate.statistics.feedbacks.push({
+      interviewRequestId,
+      feedbackData: feedback,
+      rating: averageRating,
+    });
+
+    // Increment completed interviews count
+    candidate.statistics.completedInterviews += 1;
+
+    // Update total feedback count
+    const totalFeedbackCount = candidate.statistics.totalFeedbackCount + 1;
+
+    // Update the average rating after including the new feedback
+    const updatedAverageRating =
+      (candidate.statistics.averageRating *
+        candidate.statistics.totalFeedbackCount +
+        averageRating) /
+      totalFeedbackCount;
+
+    // Update the statistics
+    candidate.statistics.totalFeedbackCount = totalFeedbackCount;
+    candidate.statistics.averageRating = updatedAverageRating;
+
+    await candidate.save();
+
+    // Get the latest 3 feedbacks (or adjust as needed)
+    const latestFeedbacks = candidate.statistics.feedbacks
+      .slice(-3)
+      .map((item) => {
+        const feedbackSections = Object.keys(item.feedbackData);
+        const feedbackComments = feedbackSections.map((section) => ({
+          section: section,
+          comment: item.feedbackData[section].comments || "No comment provided",
+          rating: item.feedbackData[section].rating || "No rating provided",
+        }));
+        return feedbackComments;
+      })
+      .flat();
+
+    // Send email with feedback information
+    const emailContent = candidateFeedbackTemplate(
+      candidateName,
+      latestFeedbacks,
+      url
+    );
+
+    await sendEmail(
+      candidate.email,
+      "Your Interview Feedback",
+      "Feedback for your interview is now available.",
+      emailContent
+    );
+
+    res
+      .status(200)
+      .json({ message: "Feedback added and email sent successfully." });
+  } catch (error) {
+    console.error("Error adding feedback:", error.message);
+    res.status(500).json({ message: "Server error. Please try again later." });
+  }
+};
+
+const calculateAverageRating = (feedback) => {
+  const ratings = Object.values(feedback).map((item) => item.rating || 0);
+  return ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+};
+
+export const getInterviewerStatistics = async (req, res) => {
+  try {
+    const interviewerId = req.user.id;
+
+    if (!interviewerId) {
+      return res.status(400).json({ message: "User ID is required." });
+    }
+
+    const interviewer = await Interviewer.findById(interviewerId).populate({
+      path: "interviewRequests.candidateId",
+      select: "firstName lastName profilePhoto",
+    });
+
+    if (!interviewer) {
+      return res.status(404).json({ message: "Interviewer not found." });
+    }
+
+    const statistics = interviewer.statistics;
+
+    // Calculate the number of pending requests (where status is "Requested")
+    const pendingRequestsCount = interviewer.interviewRequests.filter(
+      (req) => req.status === "Requested"
+    ).length;
+
+    // Update pendingRequests count dynamically
+    statistics.pendingRequests = pendingRequestsCount;
+
+    const feedbacks = statistics.feedbacks.map((feedback) => {
+      const interviewRequest = interviewer.interviewRequests.find(
+        (req) => req._id.toString() === feedback.interviewRequestId.toString()
+      );
+
+      const candidate = interviewRequest ? interviewRequest.candidateId : {};
+
+      return {
+        interviewRequestId: feedback.interviewRequestId,
+        interviewDate: interviewRequest ? interviewRequest.date : "",
+        candidateName: candidate.firstName
+          ? `${candidate.firstName} ${candidate.lastName.charAt(0)}...`
+          : "N/A",
+        profilePhoto: candidate.profilePhoto || "N/A",
+        feedbackData: feedback.feedbackData,
+        rating: feedback.rating,
+      };
+    });
+
+    return res.status(200).json({
+      message: "Interviewer statistics retrieved successfully.",
+      statistics: {
+        completedInterviews: statistics.completedInterviews,
+        pendingRequests: statistics.pendingRequests,
+        totalAccepted: statistics.totalAccepted,
+        averageRating: statistics.averageRating,
+        totalFeedbackCount: statistics.totalFeedbackCount,
+        feedbacks: feedbacks,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching interviewer statistics:", error);
+    return res
+      .status(500)
+      .json({ message: "Server error. Please try again later." });
   }
 };

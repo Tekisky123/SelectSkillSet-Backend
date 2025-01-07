@@ -43,15 +43,18 @@ const interviewerSchema = new mongoose.Schema({
     pendingRequests: { type: Number, default: 0 },
     totalAccepted: { type: Number, default: 0 },
     averageRating: { type: Number, default: 0 },
+    totalFeedbackCount: { type: Number, default: 0 },
+    feedbacks: [
+      {
+        interviewRequestId: {
+          type: mongoose.Schema.Types.ObjectId,
+          required: true,
+        },
+        feedbackData: { type: Object, required: true },
+        rating: { type: Number, required: true },
+      },
+    ],
   },
-  feedbacks: [
-    {
-      reviewerName: String,
-      feedbackText: String,
-      rating: Number,
-      date: String,
-    },
-  ],
 });
 
 export const Interviewer = mongoose.model("Interviewer", interviewerSchema);

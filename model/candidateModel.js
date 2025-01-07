@@ -15,15 +15,19 @@ const candidateSchema = new mongoose.Schema(
     linkedIn: { type: String },
     skills: [{ type: String }],
     statistics: {
-      monthlyStatistics: {
+
         completedInterviews: { type: Number, default: 0 },
         averageRating: { type: Number, default: 0 },
-        feedbackCount: { type: Number, default: 0 },
-      },
+        totalFeedbackCount: { type: Number, default: 0 },
+
       feedbacks: [
         {
-          feedbackData: { type: String },
-          rating: { type: Number },
+          interviewRequestId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true,
+          },
+          feedbackData: { type: Object, required: true },
+          rating: { type: Number, required: true },
         },
       ],
     },

@@ -4,7 +4,8 @@ export const candidateTemplate = (
   time,
   meetLink,
   interviewRequestId,
-  interviewerId
+  interviewerId,
+  url
 ) => `
   <!DOCTYPE html>
   <html lang="en">
@@ -115,7 +116,7 @@ export const candidateTemplate = (
         <p>After the interview, we kindly request your valuable feedback regarding your interview experience. Your input helps us to improve our process and ensure a better experience for future candidates.</p>
         <p>Please take a moment to rate your experience and provide feedback about your interviewer by clicking the button below:</p>
         
-        <a href="https://select-skill-set-testing.vercel.app/candidate-feedback/${interviewerId}/${interviewRequestId}" class="feedback-btn">Give Feedback & Rate Interviewer</a>
+        <a href="${url}/candidate-feedback/${interviewerId}/${interviewRequestId}" class="feedback-btn">Give Feedback & Rate Interviewer</a>
         
         <hr>
         
