@@ -5,32 +5,39 @@ import { Candidate } from "../model/candidateModel.js";
 import { Interviewer } from "../model/interviewerModel.js";
 
 export const createAdminService = async (username, email, password) => {
-  // Check if admin already exists
   const existingAdmin = await Admin.findOne({ email });
   if (existingAdmin) {
     throw new Error("Admin already exists");
   }
 
-  // Hash the password
   const hashedPassword = await bcrypt.hash(password, 10);
 
-  // Create a new admin
-  const newAdmin = await Admin.create({
+  const admin = new Admin({
     username,
     email,
     password: hashedPassword,
   });
 
-  const token = generateToken(newAdmin);
+  await admin.save();
 
-  return {
-    admin: {
-      id: newAdmin._id,
-      username: newAdmin.username,
-      email: newAdmin.email,
-    },
-    token,
-  };
+  return admin;
+};
+
+export const loginAdminService = async (email, password) => {
+  const admin = await Admin.findOne({ email });
+
+  if (!admin) {
+    throw new Error("Admin not found");
+  }
+
+  const isPasswordValid = await bcrypt.compare(password, admin.password);
+  if (!isPasswordValid) {
+    throw new Error("Invalid email or password");
+  }
+
+  const token = generateToken(admin);
+
+  return { admin, token };
 };
 
 export const updateAdminService = async (id, updateData) => {
@@ -61,13 +68,13 @@ export const deleteAdminService = async (id) => {
   return { message: "Admin deleted successfully" };
 };
 
-export const getAdminService = async (id) => {
-  const admin = await Admin.findById(id).select("-password");
-  if (!admin) {
-    throw new Error("Admin not found");
+export const getAllAdminService = async () => {
+  const admins = await Admin.find().select("-password");
+  if (!admins || admins.length === 0) {
+    throw new Error("No admins found");
   }
 
-  return admin;
+  return admins;
 };
 
 export const getCandidatesDetailsService = async () => {
@@ -99,7 +106,6 @@ export const getCandidatesDetailsService = async () => {
   }
 };
 
-// Service to fetch interviewer details
 export const getInterviewersDetailsService = async () => {
   try {
     return await Interviewer.aggregate([
@@ -130,7 +136,6 @@ export const getInterviewersDetailsService = async () => {
   }
 };
 
-// Service to fetch total counts
 export const getTotalCountsService = async () => {
   try {
     const totalCandidates = await Candidate.countDocuments();
@@ -141,7 +146,6 @@ export const getTotalCountsService = async () => {
   }
 };
 
-// Service to fetch interview statuses
 export const getInterviewStatusesService = async () => {
   try {
     const statuses = await Candidate.aggregate([

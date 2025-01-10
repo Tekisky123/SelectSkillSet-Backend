@@ -2,18 +2,20 @@ import express from "express";
 import {
   createAdminController,
   deleteAdminController,
-  getAdminController,
+  getAllAdminController,
   getAllDetailsController,
+  loginController,
   updateAdminController,
 } from "../controller/adminController.js";
+import authenticate from "../middleware/authenticate.js";
 
 const adminRoutes = express.Router();
 
-adminRoutes.post("/create", createAdminController);
-adminRoutes.put("/update", updateAdminController);
-adminRoutes.delete("/delete", deleteAdminController);
-adminRoutes.get("/get", getAdminController);
-
-adminRoutes.get("/getAll-details", getAllDetailsController);
+adminRoutes.post("/login", loginController);
+adminRoutes.post("/create", authenticate, createAdminController);
+adminRoutes.put("/update", authenticate, updateAdminController);
+adminRoutes.delete("/delete", authenticate, deleteAdminController);
+adminRoutes.get("/getAll", authenticate, getAllAdminController);
+adminRoutes.get("/getAll-details", authenticate, getAllDetailsController);
 
 export default adminRoutes;
