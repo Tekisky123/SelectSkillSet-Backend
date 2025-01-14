@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 import candidateRoutes from "./routes/candidateRoutes.js";
 import interviewerRoutes from "./routes/interviewerRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
+import corporateRoutes from "./routes/corporateRoutes.js";
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use("/candidate", candidateRoutes);
 app.use("/interviewer", interviewerRoutes);
 app.use("/admin", adminRoutes);
+app.use("/corporate", corporateRoutes);
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {

@@ -202,18 +202,20 @@ export const scheduleInterview = async (candidateId, data, res) => {
         .json({ success: false, message: "Candidate not found" });
     }
 
-    // const isAlreadyScheduled = candidate.scheduledInterviews.some(
-    //   (interview) =>
-    //     new Date(interview.date).toISOString() === new Date(date).toISOString()
-    // );
+    const isAlreadyScheduled = candidate.scheduledInterviews.some(
+      (interview) =>
+        new Date(interview.date).toISOString() ===
+          new Date(date).toISOString() &&
+        interview.interviewerId.toString() === interviewerId
+    );
 
-    // if (isAlreadyScheduled) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message:
-    //       "An interview is already scheduled on this date for this candidate.",
-    //   });
-    // }
+    if (isAlreadyScheduled) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "An interview is already scheduled on this date for this candidate.",
+      });
+    }
 
     const interviewRequestId = new mongoose.Types.ObjectId();
 
