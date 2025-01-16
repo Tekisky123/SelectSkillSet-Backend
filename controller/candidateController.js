@@ -164,6 +164,7 @@ export const getInterviewerProfile = async (req, res) => {
       })) || [],
     };
 
+    
     res.status(200).json(response);
   } catch (error) {
     console.error("Error fetching interviewer profile:", error);
