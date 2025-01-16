@@ -9,7 +9,11 @@ const interviewerSchema = new mongoose.Schema({
   mobile: { type: String },
   countryCode: { type: String },
   jobTitle: { type: String },
-  profilePhoto: { type: String },
+  profilePhoto: {
+    type: String,
+    default:
+      "https://static.vecteezy.com/system/resources/previews/005/544/718/non_2x/profile-icon-design-free-vector.jpg",
+  },
   experience: { type: String },
   totalInterviews: { type: String },
   price: { type: String },

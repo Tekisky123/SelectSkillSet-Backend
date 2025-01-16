@@ -10,15 +10,18 @@ const candidateSchema = new mongoose.Schema(
     countryCode: { type: String },
     jobTitle: { type: String },
     location: { type: String },
-    profilePhoto: { type: String },
+    profilePhoto: {
+      type: String,
+      default:
+        "https://cdn.vectorstock.com/i/500p/97/32/man-silhouette-profile-picture-vector-2139732.jpg",
+    },
     resume: { type: String },
     linkedIn: { type: String },
     skills: [{ type: String }],
     statistics: {
-
-        completedInterviews: { type: Number, default: 0 },
-        averageRating: { type: Number, default: 0 },
-        totalFeedbackCount: { type: Number, default: 0 },
+      completedInterviews: { type: Number, default: 0 },
+      averageRating: { type: Number, default: 0 },
+      totalFeedbackCount: { type: Number, default: 0 },
 
       feedbacks: [
         {
