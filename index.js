@@ -11,6 +11,7 @@ import corporateRoutes from "./routes/corporateRoutes.js";
 dotenv.config();
 
 const app = express();
+const PORT = process.env.PORT || 5000;
 
 app.use(morgan("dev"));
 app.use(cors());
@@ -20,7 +21,6 @@ app.use("/candidate", candidateRoutes);
 app.use("/interviewer", interviewerRoutes);
 app.use("/admin", adminRoutes);
 app.use("/corporate", corporateRoutes);
-const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {

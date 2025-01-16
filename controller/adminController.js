@@ -5,6 +5,7 @@ import {
   getCandidatesDetailsService,
   getInterviewersDetailsService,
   getInterviewStatusesService,
+  getCorporateDetailsService,
   getTotalCountsService,
   loginAdminService,
   updateAdminService,
@@ -109,7 +110,8 @@ export const getAllDetailsController = async (req, res) => {
   try {
     const candidates = await getCandidatesDetailsService();
     const interviewers = await getInterviewersDetailsService();
-    const { totalCandidates, totalInterviewers } =
+    const corporates = await getCorporateDetailsService();
+    const { totalCandidates, totalInterviewers, totalCorporates } =
       await getTotalCountsService();
     const { pendingCount, completedCount, cancelledCount } =
       await getInterviewStatusesService();
@@ -118,11 +120,13 @@ export const getAllDetailsController = async (req, res) => {
       message: "Details fetched successfully",
       totalCandidates,
       totalInterviewers,
+      totalCorporates,
       pendingCount,
       completedCount,
       cancelledCount,
       candidates,
       interviewers,
+      corporates,
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });

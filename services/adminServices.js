@@ -3,6 +3,7 @@ import { Admin } from "../model/adminModel.js";
 import bcrypt from "bcrypt";
 import { Candidate } from "../model/candidateModel.js";
 import { Interviewer } from "../model/interviewerModel.js";
+import { Corporate } from "../model/corporateModel.js";
 
 export const createAdminService = async (username, email, password) => {
   const existingAdmin = await Admin.findOne({ email });
@@ -136,15 +137,41 @@ export const getInterviewersDetailsService = async () => {
   }
 };
 
-export const getTotalCountsService = async () => {
+
+export const getCorporateDetailsService = async () => {
   try {
-    const totalCandidates = await Candidate.countDocuments();
-    const totalInterviewers = await Interviewer.countDocuments();
-    return { totalCandidates, totalInterviewers };
+    return await Corporate.aggregate([
+      {
+        $project: {
+          contactName: 1,
+          email: 1,
+          profilePhoto: 1,
+          phoneNumber: 1,
+          companyName: 1,
+          location: 1,
+          industry: 1,
+          jobDescriptions: 1,
+          bookmarks: 1,
+        },
+      },
+    ]);
   } catch (error) {
     throw new Error(error.message);
   }
 };
+
+
+export const getTotalCountsService = async () => {
+  try {
+    const totalCandidates = await Candidate.countDocuments();
+    const totalInterviewers = await Interviewer.countDocuments();
+    const totalCorporates = await Corporate.countDocuments();
+    return { totalCandidates, totalInterviewers, totalCorporates };
+  } catch (error) {
+    throw new Error(error.message);
+  }
+};
+
 
 export const getInterviewStatusesService = async () => {
   try {

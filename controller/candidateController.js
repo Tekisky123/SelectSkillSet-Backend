@@ -131,21 +131,46 @@ export const updateCandidateProfile = async (req, res) => {
 
 export const getInterviewerProfile = async (req, res) => {
   const id = req.params.id;
+
   try {
     const interviewer = await Interviewer.findById(id).select(
-      "firstName lastName jobTitle profilePhoto experience totalInterviews price skills"
+      "firstName lastName email location countryCode jobTitle profilePhoto experience totalInterviews price skills availability dates statistics.averageRating statistics.totalFeedbackCount statistics.feedbacks"
     );
 
     if (!interviewer) {
       return res.status(404).json({ message: "Interviewer not found" });
     }
 
-    res.status(200).json(interviewer);
+    // Format response data
+    const response = {
+      firstName: interviewer.firstName,
+      lastName: interviewer.lastName,
+      email: interviewer.email,
+      location: interviewer.location || "N/A",
+      countryCode: interviewer.countryCode || "N/A",
+      jobTitle: interviewer.jobTitle || "N/A",
+      profilePhoto: interviewer.profilePhoto || "https://default-profile-image.com",
+      experience: interviewer.experience || "Not specified",
+      totalInterviews: interviewer.totalInterviews || "0",
+      price: interviewer.price || "Not specified",
+      skills: interviewer.skills || [],
+      availability: interviewer.availability.dates || [],
+      averageRating: interviewer.statistics?.averageRating || 0,
+      totalFeedbackCount: interviewer.statistics?.totalFeedbackCount || 0,
+      feedbacks: interviewer.statistics?.feedbacks.map((feedback) => ({
+        interviewRequestId: feedback.interviewRequestId,
+        feedbackData: feedback.feedbackData,
+        rating: feedback.rating,
+      })) || [],
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     console.error("Error fetching interviewer profile:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
 
 export const deleteCandidateProfile = async (req, res) => {
   try {
